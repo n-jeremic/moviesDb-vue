@@ -37,10 +37,16 @@ export default {
     };
   },
   props: {
-    resultObj: Object,
-    media_type: String
+    resultObj: Object
   },
   computed: {
+    media_type() {
+      if (this.resultObj.title) {
+        return "movie";
+      } else {
+        return "tv";
+      }
+    },
     title() {
       let string;
       if (this.media_type === "movie") {
@@ -49,12 +55,10 @@ export default {
         string = this.resultObj.name;
       }
 
-      if (string) {
-        if (string.length > 28) {
-          return string.substring(0, 28) + "...";
-        } else {
-          return string;
-        }
+      if (string.length > 28) {
+        return string.substring(0, 28) + "...";
+      } else {
+        return string;
       }
     },
     genres() {

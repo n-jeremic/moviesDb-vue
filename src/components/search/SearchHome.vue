@@ -75,7 +75,6 @@
               v-for="(result, index) in searchResults"
               :key="index"
               :resultObj="result"
-              :media_type="type"
             ></app-search-result>
           </div>
         </div>
