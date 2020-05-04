@@ -68,7 +68,7 @@ export default {
   methods: {
     redirect() {
       if (this.media_type === "movie") {
-        this.$router.push("/search/movie/np" + this.resultObj.id);
+        this.$router.push("/search/movie/" + this.resultObj.id);
       } else {
         this.$router.push("/search/tv-show/" + this.resultObj.id);
       }
