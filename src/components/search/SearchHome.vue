@@ -152,7 +152,7 @@ export default {
   },
   methods: {
     updateResultsWithGenres(array) {
-      const genresList = this.genres[this.type];
+      const genresList = this.genres[this.cachedType];
 
       array.forEach(result => {
         result.genres = [];
