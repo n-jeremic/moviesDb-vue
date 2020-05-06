@@ -68,15 +68,14 @@
           </div>
           <div class="col"></div>
         </div>
+        <hr />
         <div v-if="searchResults">
-          <h5 class="text-muted mt-5">Total of {{ searchResults.length }} results found.</h5>
-          <div class="row mt-4">
-            <app-search-result
-              v-for="(result, index) in searchResults"
-              :key="index"
-              :resultObj="result"
-            ></app-search-result>
-          </div>
+          <app-search-results
+            @pageChanged="pageNumber = $event"
+            :currentPage="pageNumber"
+            :totalResults="totalResultsCount"
+            :results="searchResults"
+          ></app-search-results>
         </div>
       </div>
     </div>
@@ -86,7 +85,7 @@
 <script>
 import Spinner from "../shared/Spinner.vue";
 import axiosMoviesDb from "../../axios-instances/axios-movies-db";
-import SearchResult from "./SearchResult.vue";
+import SearchResults from "./SearchResults.vue";
 
 export default {
   name: "searchHome",
@@ -97,7 +96,12 @@ export default {
       isDropdownOpen: false,
       selectedGenres: {},
       rating: 5,
-      searchResults: null
+      searchResults: null,
+      totalResultsCount: null,
+      pageNumber: 1,
+      cachedRating: null,
+      cachedGenre: null,
+      cachedType: null
     };
   },
   computed: {
@@ -137,11 +141,14 @@ export default {
   watch: {
     type() {
       this.selectedGenres = {};
+    },
+    pageNumber() {
+      this.performSearch();
     }
   },
   components: {
     appSpinner: Spinner,
-    appSearchResult: SearchResult
+    appSearchResults: SearchResults
   },
   methods: {
     updateResultsWithGenres(array) {
@@ -151,46 +158,108 @@ export default {
         result.genres = [];
         result.genre_ids.forEach(genreId => {
           const genreObj = genresList.find(el => el.id === genreId);
-          result.genres.push(genreObj.name);
+          if (genreObj) {
+            result.genres.push(genreObj.name);
+          }
         });
       });
     },
     async performSearch(event) {
-      event.target.disabled = true;
-      event.target.innerHTML =
-        '<span class="spinner-grow spinner-grow-sm" role="status" aria-hidden="true"></span>Searching...';
+      if (event) {
+        this.pageNumber = 1;
+        this.searchResults = null;
+        this.cachedGenre = null;
+        this.cachedRating = null;
+        this.cachedType = null;
+        event.target.disabled = true;
+        event.target.innerHTML =
+          '<span class="spinner-grow spinner-grow-sm" role="status" aria-hidden="true"></span>Searching...';
+      }
 
       let genresQuery;
-      const genresSelection = Object.keys(this.selectedGenres);
-      if (genresSelection.length) {
-        genresQuery = "&with_genres=";
-        genresSelection.forEach((genreId, index, array) => {
-          if (this.selectedGenres[genreId]) {
-            genresQuery += genreId + ",";
+      if (!this.cachedGenre) {
+        const genresSelection = Object.keys(this.selectedGenres);
+        if (genresSelection.length) {
+          let check = 0;
+          genresQuery = "&with_genres=";
+          genresSelection.forEach((genreId, index, array) => {
+            if (this.selectedGenres[genreId]) {
+              genresQuery += genreId + ",";
+              check++;
+            }
+          });
+
+          if (check === 0) {
+            genresQuery = undefined;
+            this.cachedGenre = "empty";
+          } else {
+            this.cachedGenre = genresQuery;
           }
-        });
+        } else {
+          this.cachedGenre = "empty";
+        }
+      } else {
+        if (this.cachedGenre === "empty") {
+          genresQuery = undefined;
+        } else {
+          genresQuery = this.cachedGenre;
+        }
+      }
+
+      let typeQuery;
+      if (!this.cachedType) {
+        typeQuery = this.type;
+        this.cachedType = typeQuery;
+      } else {
+        typeQuery = this.cachedType;
+      }
+
+      let ratingQuery;
+      if (!this.cachedRating) {
+        ratingQuery = this.rating;
+        this.cachedRating = ratingQuery;
+      } else {
+        ratingQuery = this.cachedRating;
       }
 
       try {
         const response = await axiosMoviesDb({
           method: "GET",
-          url: `/discover/${this.type}?api_key=${
+          url: `/discover/${typeQuery}?api_key=${
             this.$store.getters.moviesDbKey
-          }&language=en-US&sort_by=vote_average.desc&include_adult=false&include_video=false&page=1&vote_count.gte=50&vote_average.gte=${
-            this.rating
-          }${genresQuery ? genresQuery : ""}`
+          }&language=en-US&sort_by=vote_average.desc&include_adult=false&include_video=false&page=${
+            this.pageNumber
+          }&vote_count.gte=50&vote_average.gte=${ratingQuery}${
+            genresQuery ? genresQuery : ""
+          }`
         });
 
         if (response.status === 200) {
-          event.target.disabled = false;
-          event.target.innerHTML = '<i class="fas fa-search mr-2"></i>Search';
+          if (event) {
+            event.target.disabled = false;
+            event.target.innerHTML = '<i class="fas fa-search mr-2"></i>Search';
+          }
+
+          if (response.data.total_results > 200) {
+            this.totalResultsCount = 200;
+          } else {
+            this.totalResultsCount = response.data.total_results;
+          }
+
           this.updateResultsWithGenres(response.data.results);
           this.searchResults = response.data.results;
         }
       } catch (err) {
         console.log(err);
-        event.target.disabled = false;
-        event.target.innerHTML = '<i class="fas fa-search mr-2"></i>Search';
+        if (event) {
+          event.target.disabled = false;
+          event.target.innerHTML = '<i class="fas fa-search mr-2"></i>Search';
+          this.pageNumber = 1;
+          this.searchResults = null;
+          this.cachedGenre = null;
+          this.cachedRating = null;
+          this.cachedType = null;
+        }
       }
     },
     async getGenres(type) {
